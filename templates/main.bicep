@@ -92,7 +92,7 @@ param servicePrincipalTenantId string
 param location string = resourceGroup().location
 
 @description('The base URL for artifacts used in deployment.')
-param artifactsBaseUrl string = 'https://raw.githubusercontent.com/microsoft/azure-api-management-monetization/main'
+param artifactsBaseUrl string = 'https://raw.githubusercontent.com/quochungdangptit/azure-api-management-monetization/main'
 
 var contributorRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'b24988ac-6180-42a0-ab88-20f7382dd24c')
 
