@@ -9,7 +9,7 @@
         "prices": {
             "metered": {
                 "currency": "usd",
-                "unitAmount": 25
+                "unitAmount": 30
             }
         }
     },
