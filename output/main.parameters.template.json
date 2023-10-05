@@ -1,0 +1,51 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "apimServiceName": {
+            "value": "apimpaymentproviderdemo" // Change this to a globally unique value
+        },
+        "apimPublisherEmail": {
+            "value": "foo@contoso.com" // Change this to your desired email address for API Management publisher
+        },
+        "apimPublisherName": {
+            "value": "Contoso" // Change this to your desired API Management publisher name
+        },
+        "appServiceHostingPlanName": {
+            "value": "apimpaymentproviderdemo" // Change this to a globally unique value
+        },
+        "appServiceName": {
+            "value": "apimpaymentproviderdemo" // Change this to a globally unique value
+        },
+        "servicePrincipalAppId": {
+            "value": "<The app ID of the service principal created as part of pre-requisites>"
+        },
+        "servicePrincipalPassword": {
+            "value": "<The password for the service principal created as part of pre-requisites>"
+        },
+        "servicePrincipalObjectId": {
+            "value": "<The object ID for the service principal created as part of pre-requisites>"
+        },
+        "servicePrincipalTenantId": {
+            "value": "<The ID of the tenant that the service principal created as part of pre-requisites resides in>" 
+        },
+        "paymentProvider":{
+            "value": "Stripe" // Value should be Adyen or Stripe
+        },
+        "stripeApiKey": {
+            "value": "<Value of Stripe 'App Key' API key created as part of pre-requisites>" // Required if using Stripe
+        },
+        "stripePublicKey": {
+            "value": "<Value of Stripe 'Publishable key' from Stripe standard keys>" // Required if using Stripe
+        },
+        "adyenApiKey": {
+            "value": "<Value of Adyen API key retrieved as part of pre-requisites>" // Required if using Adyen
+        },
+        "adyenClientKey": {
+            "value": "<Value of Adyen client key retrieved as part of pre-requisites>" // Required if using Adyen
+        },
+        "adyenMerchantAccount":{
+            "value": "<Adyen merchant account name>" // Required if using Adyen
+        }
+    }
+}

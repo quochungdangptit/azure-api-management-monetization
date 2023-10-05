@@ -1,0 +1,1355 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "apimServiceName": {
+      "type": "string",
+      "metadata": {
+        "description": "The API Management instance service name"
+      }
+    },
+    "apimPublisherEmail": {
+      "type": "string",
+      "metadata": {
+        "description": "The email address of the owner of the APIM service"
+      }
+    },
+    "apimPublisherName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the owner of the APIM service"
+      }
+    },
+    "apimSku": {
+      "type": "string",
+      "defaultValue": "Developer",
+      "allowedValues": [
+        "Developer",
+        "Standard",
+        "Premium"
+      ],
+      "metadata": {
+        "description": "The pricing tier of this API Management service"
+      }
+    },
+    "apimSkuCount": {
+      "type": "int",
+      "defaultValue": 1,
+      "maxValue": 2,
+      "metadata": {
+        "description": "The instance size of this API Management service."
+      }
+    },
+    "appServiceHostingPlanName": {
+      "type": "string",
+      "metadata": {
+        "description": "The App Service hosting plan name"
+      }
+    },
+    "appServiceName": {
+      "type": "string",
+      "metadata": {
+        "description": "The App Service name"
+      }
+    },
+    "appServiceSkuName": {
+      "type": "string",
+      "defaultValue": "B1",
+      "metadata": {
+        "description": "The pricing tier of the App Service plan to deploy, defaults to Basic"
+      },
+      "allowedValues": [
+        "B1",
+        "B2",
+        "B3",
+        "S1",
+        "S2",
+        "S3",
+        "P1",
+        "P2",
+        "P3",
+        "P1V2",
+        "P2V2",
+        "P3V2"
+      ]
+    },
+    "appServiceSkuCapacity": {
+      "type": "int",
+      "defaultValue": 1,
+      "minValue": 1
+    },
+    "paymentProvider": {
+      "type": "string",
+      "allowedValues": [
+        "Stripe",
+        "Adyen"
+      ],
+      "metadata": {
+        "description": "The payment provider - Adyen or Stripe"
+      }
+    },
+    "stripeApiKey": {
+      "type": "secureString",
+      "defaultValue": "",
+      "metadata": {
+        "description": "The Stripe secret API key - required if using Stripe"
+      }
+    },
+    "stripePublicKey": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "The Stripe publishable key - required if using Stripe"
+      }
+    },
+    "adyenApiKey": {
+      "type": "secureString",
+      "defaultValue": "",
+      "metadata": {
+        "description": "The Adyen API key - required if using Adyen"
+      }
+    },
+    "adyenClientKey": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "The Adyen client key - required if using Adyen"
+      }
+    },
+    "adyenMerchantAccount": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "The Adyen merchant account ID - required if using Adyen"
+      }
+    },
+    "appServiceContainerImage": {
+      "type": "string",
+      "defaultValue": "mcr.microsoft.com/azure-api-management/samples/monetization:0.1.0",
+      "metadata": {
+        "description": "The container image to deploy to the app service. By default is retrieved from Github"
+      }
+    },
+    "appServiceContainerPort": {
+      "type": "int",
+      "defaultValue": 8000,
+      "metadata": {
+        "description": "Port for the App Service container"
+      }
+    },
+    "servicePrincipalAppId": {
+      "type": "string",
+      "metadata": {
+        "description": "The app ID of the service principal that the Web App uses to manage APIM"
+      }
+    },
+    "servicePrincipalObjectId": {
+      "type": "string",
+      "metadata": {
+        "description": "The object ID of the service principal that the Web App uses to manage APIM"
+      }
+    },
+    "servicePrincipalPassword": {
+      "type": "secureString",
+      "metadata": {
+        "description": "The password for the service principal"
+      }
+    },
+    "servicePrincipalTenantId": {
+      "type": "string",
+      "metadata": {
+        "description": "The AAD tenant in which the service principal resides"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Location for all resources."
+      }
+    },
+    "artifactsBaseUrl": {
+      "type": "string",
+      "defaultValue": "https://raw.githubusercontent.com/microsoft/azure-api-management-monetization/main",
+      "metadata": {
+        "description": "The base URL for artifacts used in deployment."
+      }
+    }
+  },
+  "functions": [],
+  "variables": {
+    "contributorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2020-04-01-preview",
+      "name": "[guid(resourceGroup().id, parameters('servicePrincipalObjectId'), variables('contributorRoleId'))]",
+      "properties": {
+        "roleDefinitionId": "[variables('contributorRoleId')]",
+        "principalId": "[parameters('servicePrincipalObjectId')]"
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2019-10-01",
+      "name": "appServiceDeploy",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "hostingPlanName": {
+            "value": "[parameters('appServiceHostingPlanName')]"
+          },
+          "webSiteName": {
+            "value": "[parameters('appServiceName')]"
+          },
+          "skuName": {
+            "value": "[parameters('appServiceSkuName')]"
+          },
+          "skuCapacity": {
+            "value": "[parameters('appServiceSkuCapacity')]"
+          },
+          "containerImage": {
+            "value": "[parameters('appServiceContainerImage')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]"
+            },
+            "skuName": {
+              "type": "string",
+              "defaultValue": "B1",
+              "allowedValues": [
+                "B1",
+                "B2",
+                "B3",
+                "S1",
+                "S2",
+                "S3",
+                "P1",
+                "P2",
+                "P3",
+                "P1V2",
+                "P2V2",
+                "P3V2"
+              ]
+            },
+            "skuCapacity": {
+              "type": "int",
+              "defaultValue": 1,
+              "minValue": 1
+            },
+            "hostingPlanName": {
+              "type": "string"
+            },
+            "webSiteName": {
+              "type": "string"
+            },
+            "containerImage": {
+              "type": "string"
+            }
+          },
+          "functions": [],
+          "variables": {
+            "linuxFxVersion": "[format('DOCKER|{0}', parameters('containerImage'))]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Web/serverfarms",
+              "apiVersion": "2020-12-01",
+              "name": "[parameters('hostingPlanName')]",
+              "location": "[parameters('location')]",
+              "kind": "linux",
+              "properties": {
+                "reserved": true
+              },
+              "sku": {
+                "name": "[parameters('skuName')]",
+                "capacity": "[parameters('skuCapacity')]"
+              }
+            },
+            {
+              "type": "Microsoft.Web/sites",
+              "apiVersion": "2018-11-01",
+              "name": "[parameters('webSiteName')]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "siteConfig": {
+                  "linuxFxVersion": "[variables('linuxFxVersion')]",
+                  "alwaysOn": true
+                },
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('hostingPlanName'))]",
+                "clientAffinityEnabled": false
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Web/serverfarms', parameters('hostingPlanName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "webSiteUrl": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Web/sites', parameters('webSiteName'))).defaultHostName]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2019-10-01",
+      "name": "apimInstanceDeploy",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "serviceName": {
+            "value": "[parameters('apimServiceName')]"
+          },
+          "publisherEmail": {
+            "value": "[parameters('apimPublisherEmail')]"
+          },
+          "publisherName": {
+            "value": "[parameters('apimPublisherName')]"
+          },
+          "sku": {
+            "value": "[parameters('apimSku')]"
+          },
+          "skuCount": {
+            "value": "[parameters('apimSkuCount')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "delegationUrl": {
+            "value": "[uri(format('https://{0}', reference(resourceId('Microsoft.Resources/deployments', 'appServiceDeploy'), '2019-10-01').outputs.webSiteUrl.value), 'apim-delegation')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "serviceName": {
+              "type": "string",
+              "metadata": {
+                "description": "The API Management instance service name"
+              }
+            },
+            "publisherEmail": {
+              "type": "string",
+              "metadata": {
+                "description": "The email address of the owner of the service"
+              }
+            },
+            "publisherName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the owner of the service"
+              }
+            },
+            "sku": {
+              "type": "string",
+              "defaultValue": "Developer",
+              "allowedValues": [
+                "Developer",
+                "Standard",
+                "Premium"
+              ],
+              "metadata": {
+                "description": "The pricing tier of this API Management service"
+              }
+            },
+            "skuCount": {
+              "type": "int",
+              "defaultValue": 1,
+              "metadata": {
+                "description": "The instance size of this API Management service."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Location for all resources."
+              }
+            },
+            "delegationUrl": {
+              "type": "string",
+              "metadata": {
+                "description": "The URL for delegation requests from APIM"
+              }
+            },
+            "delegationValidationKeyRaw": {
+              "type": "string",
+              "defaultValue": "[newGuid()]",
+              "metadata": {
+                "description": "The validation key used for delegation requests from APIM. Default value will generate a new GUID. If deploying to production, consider setting this parameter explicitly to avoid the value being regenerated for new deployments."
+              }
+            }
+          },
+          "functions": [],
+          "variables": {
+            "readerRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.ApiManagement/service",
+              "apiVersion": "2020-12-01",
+              "name": "[parameters('serviceName')]",
+              "location": "[parameters('location')]",
+              "sku": {
+                "name": "[parameters('sku')]",
+                "capacity": "[parameters('skuCount')]"
+              },
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "properties": {
+                "publisherEmail": "[parameters('publisherEmail')]",
+                "publisherName": "[parameters('publisherName')]"
+              }
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/portalsettings",
+              "apiVersion": "2021-01-01-preview",
+              "name": "[format('{0}/{1}', parameters('serviceName'), 'delegation')]",
+              "properties": {
+                "url": "[parameters('delegationUrl')]",
+                "validationKey": "[base64(parameters('delegationValidationKeyRaw'))]",
+                "subscriptions": {
+                  "enabled": true
+                },
+                "userRegistration": {
+                  "enabled": true
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ApiManagement/service', parameters('serviceName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2020-04-01-preview",
+              "name": "[guid(resourceId('Microsoft.ApiManagement/service', parameters('serviceName')), variables('readerRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[variables('readerRoleId')]",
+                "principalId": "[reference(resourceId('Microsoft.ApiManagement/service', parameters('serviceName')), '2020-12-01', 'full').identity.principalId]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ApiManagement/service', parameters('serviceName'))]"
+              ]
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'appServiceDeploy')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2019-10-01",
+      "name": "apimAddressApiDeploy",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "apimServiceName": {
+            "value": "[parameters('apimServiceName')]"
+          },
+          "serviceUrl": {
+            "value": {
+              "address": "https://api.microsoft.com/address"
+            }
+          },
+          "artifactsBaseUrl": {
+            "value": "[parameters('artifactsBaseUrl')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "apimServiceName": {
+              "type": "string"
+            },
+            "serviceUrl": {
+              "type": "object"
+            },
+            "artifactsBaseUrl": {
+              "type": "string"
+            }
+          },
+          "functions": [],
+          "resources": [
+            {
+              "type": "Microsoft.ApiManagement/service/apis/operations/policies",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}/{2}/{3}', parameters('apimServiceName'), 'address', 'validate_address', 'policy')]",
+              "properties": {
+                "value": "[format('{0}/apiConfiguration/policies/apis/address-validate_address.xml', parameters('artifactsBaseUrl'))]",
+                "format": "xml-link"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ApiManagement/service/apis', parameters('apimServiceName'), 'address')]"
+              ]
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/apis",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}', parameters('apimServiceName'), 'address')]",
+              "properties": {
+                "isCurrent": false,
+                "subscriptionRequired": true,
+                "displayName": "address",
+                "serviceUrl": "[parameters('serviceUrl').address]",
+                "path": "address",
+                "protocols": [
+                  "https"
+                ],
+                "value": "[format('{0}/apiConfiguration/openApi/address.yaml', parameters('artifactsBaseUrl'))]",
+                "format": "openapi-link"
+              },
+              "dependsOn": []
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'apimInstanceDeploy')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2019-10-01",
+      "name": "apimBillingApiDeploy",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "apimServiceName": {
+            "value": "[parameters('apimServiceName')]"
+          },
+          "serviceUrl": {
+            "value": {
+              "billing": "https://api.microsoft.com/billing"
+            }
+          },
+          "artifactsBaseUrl": {
+            "value": "[parameters('artifactsBaseUrl')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "apimServiceName": {
+              "type": "string"
+            },
+            "serviceUrl": {
+              "type": "object"
+            },
+            "artifactsBaseUrl": {
+              "type": "string"
+            }
+          },
+          "functions": [],
+          "resources": [
+            {
+              "type": "Microsoft.ApiManagement/service/apis/operations/policies",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}/{2}/{3}', parameters('apimServiceName'), 'billing', 'get_monetization_models', 'policy')]",
+              "properties": {
+                "value": "[format('{0}/apiConfiguration/policies/apis/billing-get_monetization_models.xml', parameters('artifactsBaseUrl'))]",
+                "format": "rawxml-link"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ApiManagement/service/apis', parameters('apimServiceName'), 'billing')]"
+              ]
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/apis/operations/policies",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}/{2}/{3}', parameters('apimServiceName'), 'billing', 'get_products', 'policy')]",
+              "properties": {
+                "value": "[format('{0}/apiConfiguration/policies/apis/billing-get_products.xml', parameters('artifactsBaseUrl'))]",
+                "format": "xml-link"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ApiManagement/service/apis', parameters('apimServiceName'), 'billing')]"
+              ]
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/apis",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}', parameters('apimServiceName'), 'billing')]",
+              "properties": {
+                "isCurrent": false,
+                "subscriptionRequired": true,
+                "displayName": "billing",
+                "serviceUrl": "[parameters('serviceUrl').billing]",
+                "path": "billing",
+                "protocols": [
+                  "https"
+                ],
+                "value": "[format('{0}/apiConfiguration/openApi/billing.yaml', parameters('artifactsBaseUrl'))]",
+                "format": "openapi-link"
+              },
+              "dependsOn": []
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'apimInstanceDeploy')]",
+        "[resourceId('Microsoft.Resources/deployments', 'apimInstanceNamedValuesDeploy')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2019-10-01",
+      "name": "apimProductsDeploy",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "apimServiceName": {
+            "value": "[parameters('apimServiceName')]"
+          },
+          "artifactsBaseUrl": {
+            "value": "[parameters('artifactsBaseUrl')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "apimServiceName": {
+              "type": "string"
+            },
+            "artifactsBaseUrl": {
+              "type": "string"
+            }
+          },
+          "functions": [],
+          "resources": [
+            {
+              "type": "Microsoft.ApiManagement/service/products/policies",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'free', 'policy')]",
+              "properties": {
+                "value": "[format('{0}/apiConfiguration/policies/products/free.xml', parameters('artifactsBaseUrl'))]",
+                "format": "xml-link"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ApiManagement/service/products', parameters('apimServiceName'), 'free')]"
+              ]
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/policies",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'developer', 'policy')]",
+              "properties": {
+                "value": "[format('{0}/apiConfiguration/policies/products/developer.xml', parameters('artifactsBaseUrl'))]",
+                "format": "xml-link"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ApiManagement/service/products', parameters('apimServiceName'), 'developer')]"
+              ]
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/policies",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'payg', 'policy')]",
+              "properties": {
+                "value": "[format('{0}/apiConfiguration/policies/products/payg.xml', parameters('artifactsBaseUrl'))]",
+                "format": "xml-link"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ApiManagement/service/products', parameters('apimServiceName'), 'payg')]"
+              ]
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/policies",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'basic', 'policy')]",
+              "properties": {
+                "value": "[format('{0}/apiConfiguration/policies/products/basic.xml', parameters('artifactsBaseUrl'))]",
+                "format": "xml-link"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ApiManagement/service/products', parameters('apimServiceName'), 'basic')]"
+              ]
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/policies",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'standard', 'policy')]",
+              "properties": {
+                "value": "[format('{0}/apiConfiguration/policies/products/standard.xml', parameters('artifactsBaseUrl'))]",
+                "format": "xml-link"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ApiManagement/service/products', parameters('apimServiceName'), 'standard')]"
+              ]
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/policies",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'pro', 'policy')]",
+              "properties": {
+                "value": "[format('{0}/apiConfiguration/policies/products/pro.xml', parameters('artifactsBaseUrl'))]",
+                "format": "xml-link"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ApiManagement/service/products', parameters('apimServiceName'), 'pro')]"
+              ]
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/policies",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'enterprise', 'policy')]",
+              "properties": {
+                "value": "[format('{0}/apiConfiguration/policies/products/enterprise.xml', parameters('artifactsBaseUrl'))]",
+                "format": "xml-link"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ApiManagement/service/products', parameters('apimServiceName'), 'enterprise')]"
+              ]
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}', parameters('apimServiceName'), 'admin')]",
+              "properties": {
+                "description": "Admin",
+                "terms": "Terms here",
+                "subscriptionRequired": true,
+                "approvalRequired": true,
+                "subscriptionsLimit": 1,
+                "state": "published",
+                "displayName": "Admin"
+              },
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}', parameters('apimServiceName'), 'free')]",
+              "properties": {
+                "description": "Free tier with a monthly quota of 100 calls.",
+                "terms": "Terms here",
+                "subscriptionRequired": true,
+                "approvalRequired": false,
+                "subscriptionsLimit": 1,
+                "state": "published",
+                "displayName": "Free"
+              },
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}', parameters('apimServiceName'), 'developer')]",
+              "properties": {
+                "description": "Developer tier with a free monthly quota of 100 calls and charges for overage.",
+                "terms": "Terms here",
+                "subscriptionRequired": true,
+                "approvalRequired": true,
+                "state": "published",
+                "displayName": "Developer"
+              },
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}', parameters('apimServiceName'), 'payg')]",
+              "properties": {
+                "description": "Pay-as-you-go tier.",
+                "terms": "Terms here",
+                "subscriptionRequired": true,
+                "approvalRequired": true,
+                "state": "published",
+                "displayName": "PAYG"
+              },
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}', parameters('apimServiceName'), 'basic')]",
+              "properties": {
+                "description": "Basic tier with a monthly quota of 50,000 calls.",
+                "terms": "Terms here",
+                "subscriptionRequired": true,
+                "approvalRequired": true,
+                "state": "published",
+                "displayName": "Basic"
+              },
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}', parameters('apimServiceName'), 'standard')]",
+              "properties": {
+                "description": "Standard tier with a monthly quota of 100,000 calls and charges for overage.",
+                "terms": "Terms here",
+                "subscriptionRequired": true,
+                "approvalRequired": true,
+                "state": "published",
+                "displayName": "Standard"
+              },
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}', parameters('apimServiceName'), 'pro')]",
+              "properties": {
+                "description": "Pro tier with a monthly quota of 500,000 calls and charges for overage.",
+                "terms": "Terms here",
+                "subscriptionRequired": true,
+                "approvalRequired": true,
+                "state": "published",
+                "displayName": "Pro"
+              },
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}', parameters('apimServiceName'), 'enterprise')]",
+              "properties": {
+                "description": "Enterprise tier with a monthly quota of 1,500,000 calls. Overage is charged in units of 1,500,000 calls.",
+                "terms": "Terms here",
+                "subscriptionRequired": true,
+                "approvalRequired": true,
+                "state": "published",
+                "displayName": "Enterprise"
+              },
+              "dependsOn": []
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'apimAddressApiDeploy')]",
+        "[resourceId('Microsoft.Resources/deployments', 'apimBillingApiDeploy')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2019-10-01",
+      "name": "apimProductsApisDeploy",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "apimServiceName": {
+            "value": "[parameters('apimServiceName')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "apimServiceName": {
+              "type": "string"
+            }
+          },
+          "functions": [],
+          "resources": [
+            {
+              "type": "Microsoft.ApiManagement/service/products/apis",
+              "apiVersion": "2020-12-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'free', 'address')]",
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/apis",
+              "apiVersion": "2020-12-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'developer', 'address')]",
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/apis",
+              "apiVersion": "2020-12-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'payg', 'address')]",
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/apis",
+              "apiVersion": "2020-12-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'basic', 'address')]",
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/apis",
+              "apiVersion": "2020-12-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'standard', 'address')]",
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/apis",
+              "apiVersion": "2020-12-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'pro', 'address')]",
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/apis",
+              "apiVersion": "2020-12-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'enterprise', 'address')]",
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/apis",
+              "apiVersion": "2020-12-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'admin', 'address')]",
+              "dependsOn": []
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'apimProductsDeploy')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2019-10-01",
+      "name": "apimProductsGroupsDeploy",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "apimServiceName": {
+            "value": "[parameters('apimServiceName')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "apimServiceName": {
+              "type": "string"
+            }
+          },
+          "functions": [],
+          "resources": [
+            {
+              "type": "Microsoft.ApiManagement/service/products/groups",
+              "apiVersion": "2020-12-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'free', 'guests')]",
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/groups",
+              "apiVersion": "2020-12-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'free', 'developers')]",
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/groups",
+              "apiVersion": "2020-12-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'developer', 'guests')]",
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/groups",
+              "apiVersion": "2020-12-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'developer', 'developers')]",
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/groups",
+              "apiVersion": "2020-12-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'payg', 'guests')]",
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/groups",
+              "apiVersion": "2020-12-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'payg', 'developers')]",
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/groups",
+              "apiVersion": "2020-12-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'basic', 'guests')]",
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/groups",
+              "apiVersion": "2020-12-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'basic', 'developers')]",
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/groups",
+              "apiVersion": "2020-12-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'standard', 'guests')]",
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/groups",
+              "apiVersion": "2020-12-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'standard', 'developers')]",
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/groups",
+              "apiVersion": "2020-12-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'pro', 'guests')]",
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/groups",
+              "apiVersion": "2020-12-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'pro', 'developers')]",
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/groups",
+              "apiVersion": "2020-12-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'enterprise', 'guests')]",
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/groups",
+              "apiVersion": "2020-12-01",
+              "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'enterprise', 'developers')]",
+              "dependsOn": []
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'apimProductsDeploy')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2019-10-01",
+      "name": "apimInstanceNamedValuesDeploy",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "subscriptionId": {
+            "value": "[subscription().subscriptionId]"
+          },
+          "resourceGroupName": {
+            "value": "[resourceGroup().name]"
+          },
+          "apimServiceName": {
+            "value": "[parameters('apimServiceName')]"
+          },
+          "appServiceName": {
+            "value": "[parameters('appServiceName')]"
+          },
+          "artifactsBaseUrl": {
+            "value": "[parameters('artifactsBaseUrl')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "apimServiceName": {
+              "type": "string"
+            },
+            "subscriptionId": {
+              "type": "string"
+            },
+            "resourceGroupName": {
+              "type": "string"
+            },
+            "appServiceName": {
+              "type": "string"
+            },
+            "artifactsBaseUrl": {
+              "type": "string"
+            }
+          },
+          "functions": [],
+          "resources": [
+            {
+              "type": "Microsoft.ApiManagement/service/properties",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}', parameters('apimServiceName'), 'subscriptionId')]",
+              "properties": {
+                "secret": false,
+                "displayName": "subscriptionId",
+                "value": "[parameters('subscriptionId')]"
+              },
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/properties",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}', parameters('apimServiceName'), 'resourceGroupName')]",
+              "properties": {
+                "secret": false,
+                "displayName": "resourceGroupName",
+                "value": "[parameters('resourceGroupName')]"
+              },
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/properties",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}', parameters('apimServiceName'), 'apimServiceName')]",
+              "properties": {
+                "secret": false,
+                "displayName": "apimServiceName",
+                "value": "[parameters('apimServiceName')]"
+              },
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/properties",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}', parameters('apimServiceName'), 'appServiceName')]",
+              "properties": {
+                "secret": false,
+                "displayName": "appServiceName",
+                "value": "[parameters('appServiceName')]"
+              },
+              "dependsOn": []
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/properties",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}', parameters('apimServiceName'), 'monetizationModelsUrl')]",
+              "properties": {
+                "secret": false,
+                "displayName": "monetizationModelsUrl",
+                "value": "[format('{0}/payment/monetizationModels.json', parameters('artifactsBaseUrl'))]"
+              },
+              "dependsOn": []
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'apimInstanceDeploy')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2019-10-01",
+      "name": "apimGlobalServicePolicyDeploy",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "apimServiceName": {
+            "value": "[parameters('apimServiceName')]"
+          },
+          "artifactsBaseUrl": {
+            "value": "[parameters('artifactsBaseUrl')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "apimServiceName": {
+              "type": "string"
+            },
+            "artifactsBaseUrl": {
+              "type": "string"
+            }
+          },
+          "functions": [],
+          "resources": [
+            {
+              "type": "Microsoft.ApiManagement/service/policies",
+              "apiVersion": "2019-01-01",
+              "name": "[format('{0}/{1}', parameters('apimServiceName'), 'policy')]",
+              "properties": {
+                "value": "[format('{0}/apiConfiguration/policies/global.xml', parameters('artifactsBaseUrl'))]",
+                "format": "xml-link"
+              },
+              "dependsOn": []
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'apimInstanceDeploy')]",
+        "[resourceId('Microsoft.Resources/deployments', 'apimInstanceNamedValuesDeploy')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2019-10-01",
+      "name": "appServiceSettingsDeploy",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "webSiteName": {
+            "value": "[parameters('appServiceName')]"
+          },
+          "apimServiceName": {
+            "value": "[parameters('apimServiceName')]"
+          },
+          "stripeApiKey": {
+            "value": "[parameters('stripeApiKey')]"
+          },
+          "stripePublicKey": {
+            "value": "[parameters('stripePublicKey')]"
+          },
+          "containerPort": {
+            "value": "[parameters('appServiceContainerPort')]"
+          },
+          "servicePrincipalAppId": {
+            "value": "[parameters('servicePrincipalAppId')]"
+          },
+          "servicePrincipalPassword": {
+            "value": "[parameters('servicePrincipalPassword')]"
+          },
+          "servicePrincipalTenantId": {
+            "value": "[parameters('servicePrincipalTenantId')]"
+          },
+          "paymentProvider": {
+            "value": "[parameters('paymentProvider')]"
+          },
+          "adyenApiKey": {
+            "value": "[parameters('adyenApiKey')]"
+          },
+          "adyenClientKey": {
+            "value": "[parameters('adyenClientKey')]"
+          },
+          "adyenMerchantAccount": {
+            "value": "[parameters('adyenMerchantAccount')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "webSiteName": {
+              "type": "string"
+            },
+            "apimServiceName": {
+              "type": "string"
+            },
+            "paymentProvider": {
+              "type": "string"
+            },
+            "stripePublicKey": {
+              "type": "string",
+              "defaultValue": ""
+            },
+            "stripeApiKey": {
+              "type": "string",
+              "defaultValue": ""
+            },
+            "adyenApiKey": {
+              "type": "string",
+              "defaultValue": ""
+            },
+            "adyenClientKey": {
+              "type": "string",
+              "defaultValue": ""
+            },
+            "adyenMerchantAccount": {
+              "type": "string",
+              "defaultValue": ""
+            },
+            "containerPort": {
+              "type": "int"
+            },
+            "servicePrincipalAppId": {
+              "type": "string"
+            },
+            "servicePrincipalPassword": {
+              "type": "secureString"
+            },
+            "servicePrincipalTenantId": {
+              "type": "string"
+            }
+          },
+          "functions": [],
+          "resources": [
+            {
+              "type": "Microsoft.Web/sites/config",
+              "apiVersion": "2020-06-01",
+              "name": "[format('{0}/{1}', parameters('webSiteName'), 'appsettings')]",
+              "properties": {
+                "NODE_ENV": "production",
+                "SERVER_PORT": "8000",
+                "APIM_MANAGEMENT_URL": "[reference(resourceId('Microsoft.ApiManagement/service', parameters('apimServiceName')), '2020-12-01').managementApiUrl]",
+                "APIM_GATEWAY_URL": "[reference(resourceId('Microsoft.ApiManagement/service', parameters('apimServiceName')), '2020-12-01').gatewayUrl]",
+                "APIM_DEVELOPER_PORTAL_URL": "[reference(resourceId('Microsoft.ApiManagement/service', parameters('apimServiceName')), '2020-12-01').developerPortalUrl]",
+                "APIM_ADMIN_SUBSCRIPTION_KEY": "[reference(resourceId('Microsoft.ApiManagement/service/subscriptions', parameters('apimServiceName'), 'master'), '2019-01-01').primaryKey]",
+                "STRIPE_PUBLIC_KEY": "[parameters('stripePublicKey')]",
+                "STRIPE_API_KEY": "[parameters('stripeApiKey')]",
+                "WEBSITES_PORT": "[string(parameters('containerPort'))]",
+                "WEBSITES_ENABLE_APP_SERVICE_STORAGE": "false",
+                "APIM_SERVICE_NAME": "[parameters('apimServiceName')]",
+                "APIM_SERVICE_AZURE_SUBSCRIPTION_ID": "[subscription().subscriptionId]",
+                "APIM_SERVICE_AZURE_RESOURCE_GROUP_NAME": "[resourceGroup().name]",
+                "APIM_DELEGATION_VALIDATION_KEY": "[reference(resourceId('Microsoft.ApiManagement/service/portalsettings', parameters('apimServiceName'), 'delegation'), '2018-01-01').validationKey]",
+                "AZURE_AD_SERVICE_PRINCIPAL_APP_ID": "[parameters('servicePrincipalAppId')]",
+                "AZURE_AD_SERVICE_PRINCIPAL_PASSWORD": "[parameters('servicePrincipalPassword')]",
+                "AZURE_AD_SERVICE_PRINCIPAL_TENANT_ID": "[parameters('servicePrincipalTenantId')]",
+                "PAYMENT_PROVIDER": "[parameters('paymentProvider')]",
+                "ADYEN_MERCHANT_ACCOUNT": "[parameters('adyenMerchantAccount')]",
+                "ADYEN_CLIENT_KEY": "[parameters('adyenClientKey')]",
+                "ADYEN_API_KEY": "[parameters('adyenApiKey')]"
+              },
+              "dependsOn": []
+            }
+          ],
+          "outputs": {
+            "webSiteUrl": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Web/sites', parameters('webSiteName')), '2018-11-01').defaultHostName]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'apimInstanceDeploy')]"
+      ]
+    }
+  ],
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.3.126.58533",
+      "templateHash": "11348185216968898809"
+    }
+  }
+}
